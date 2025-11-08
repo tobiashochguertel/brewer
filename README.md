@@ -20,11 +20,11 @@ expected.
 ## Install
 
 ```bash
-git clone git@github.com:metafates/brewer.git
+git clone https://github.com/tobiashochguertel/brewer.git
 cd brewer
 
 # using cargo
-cargo install --path brewer_term
+cargo install --path brewer_term --force
 
 # or using `just`
 just
@@ -33,21 +33,25 @@ just
 ## Usage
 
 ```
-Usage: brewer <COMMAND>
+Usage: brewer [OPTIONS] <COMMAND>
 
 Commands:
-  which   Locate the formulae which provides the given executable
-  update  Update the local cache
-  list    List installed formulae and casks
-  info    Show information about formula or cask
-  search  Search for formulae and casks
-  paths   Show paths that brewer uses
-  exists  Indicate if the given formula or cask exists by exit code
-  help    Print this message or the help of the given subcommand(s)
+  which      Locate the formulae which provides the given executable
+  update     Update the local cache
+  list       List installed formulae and casks
+  info       Show information about formula or cask
+  search     Search for formulae and casks
+  paths      Show paths that brewer uses
+  exists     Indicate if the given formula or cask exists by exit code
+  install    Install the given formula or cask
+  uninstall  Uninstall the given formula or cask
+  help       Print this message or the help of the given subcommand(s)
 
 Options:
-  -h, --help     Print help
-  -V, --version  Print version
+  -v, --verbose...  More output per occurrence
+  -q, --quiet...    Less output per occurrence
+  -h, --help        Print help
+  -V, --version     Print version
 ```
 
 [fzf]: https://github.com/junegunn/fzf
