@@ -32,8 +32,35 @@ impl Engine {
         Engine {
             store,
             brew,
-            cache_duration: None,
+            cache_duration: Self::get_cache_ttl(),
         }
+    }
+
+    /// Get cache TTL from environment or default (24 hours)
+    fn get_cache_ttl() -> Option<Duration> {
+        // Check if cache should never expire
+        if let Ok(val) = std::env::var("BREWER_CACHE_NEVER_EXPIRE") {
+            if val == "1" || val.to_lowercase() == "true" {
+                log::info!("Cache expiration disabled via BREWER_CACHE_NEVER_EXPIRE");
+                return None;
+            }
+        }
+
+        // Check for custom TTL in hours
+        if let Ok(hours_str) = std::env::var("BREWER_CACHE_TTL") {
+            if let Ok(hours) = hours_str.parse::<u64>() {
+                log::info!("Using custom cache TTL: {} hours", hours);
+                if hours == 0 {
+                    log::info!("Cache TTL set to 0, will always fetch fresh data");
+                }
+                return Some(Duration::from_secs(hours * 3600));
+            } else {
+                log::warn!("Invalid BREWER_CACHE_TTL value: {}, using default", hours_str);
+            }
+        }
+
+        // Default: 24 hours
+        Some(Duration::from_secs(24 * 3600))
     }
 
     pub fn install(&self, kegs: Vec<models::Keg>) -> anyhow::Result<()> {
@@ -101,16 +128,31 @@ impl Engine {
 
     pub fn cache_expired(&self) -> anyhow::Result<bool> {
         let Some(cache_duration) = self.cache_duration else {
+            // No expiration set (BREWER_CACHE_NEVER_EXPIRE=1)
+            log::debug!("Cache never expires");
             return Ok(false);
         };
+
+        // If TTL is 0, always consider expired (force fresh)
+        if cache_duration.as_secs() == 0 {
+            log::info!("Cache TTL is 0, forcing fresh fetch");
+            return Ok(true);
+        }
 
         let last_update = self.store.last_update()?;
 
         match last_update {
             Some(last_update) => {
                 let now = Utc::now().naive_utc();
+                let expired = last_update + cache_duration <= now;
 
-                Ok(last_update + cache_duration <= now)
+                if expired {
+                    let age_secs = (now - last_update).num_seconds();
+                    log::info!("Cache expired: age {}s > TTL {}s", 
+                        age_secs, cache_duration.as_secs());
+                }
+
+                Ok(expired)
             }
             None => Ok(true),
         }
