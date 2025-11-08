@@ -396,13 +396,35 @@ impl Brew {
 
         let output = command.output()?;
 
+        // Check if stdout is empty
+        if output.stdout.is_empty() {
+            log::error!("brew info --eval-all returned empty output");
+            log::error!("stderr: {}", String::from_utf8_lossy(&output.stderr));
+            return Err(anyhow!(
+                "brew info --eval-all failed. This may be caused by broken taps. \
+                 Try running 'brew info --eval-all --json=v2' to see errors."
+            ));
+        }
+
         #[derive(Deserialize)]
         struct Result {
             formulae: Vec<formula::base::Formula>,
             casks: Vec<cask::base::Cask>,
         }
 
-        let result: Result = serde_json::from_slice(output.stdout.as_slice())?;
+        let result: Result = match serde_json::from_slice(output.stdout.as_slice()) {
+            Ok(r) => r,
+            Err(e) => {
+                log::error!("Failed to parse JSON from brew info --eval-all: {}", e);
+                log::error!("Output (first 500 chars): {}", 
+                    String::from_utf8_lossy(&output.stdout[..std::cmp::min(500, output.stdout.len())]));
+                return Err(anyhow!(
+                    "Failed to parse JSON from brew. Error: {}. \
+                     This may be caused by broken tap formulas. \
+                     Run 'brew doctor' or 'brew update' to fix.", e
+                ));
+            }
+        };
 
         let formulae: formula::base::Store = result
             .formulae

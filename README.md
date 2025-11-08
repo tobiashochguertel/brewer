@@ -30,6 +30,43 @@ cargo install --path brewer_term --force
 just
 ```
 
+## Uninstall
+
+```bash
+# Remove the brewer binary
+rm ~/.cargo/bin/brewer
+
+# Or if installed to a different location, find it first
+which brewer  # Shows installation location
+rm $(which brewer)
+```
+
+**Note**: Due to the binary being named `brewer` while the package is `brewer_term`, 
+`cargo uninstall brewer_term` won't work. You must manually remove the binary.
+
+## Troubleshooting
+
+### Broken Taps Error
+
+If you see errors like:
+```
+==> EOF while parsing a value at line 1 column 0
+==> brew info --eval-all failed
+```
+
+This is caused by broken Homebrew taps on your system. See [BROKEN_TAPS_ISSUE.md](BROKEN_TAPS_ISSUE.md) for detailed solutions.
+
+**Quick fix:**
+```bash
+# Check for broken taps
+brew info --eval-all --json=v2 2>&1 | grep "Error"
+
+# Remove problematic taps
+brew untap adoptopenjdk/openjdk
+brew untap kaos/shell
+# ... remove others showing errors
+```
+
 ## Usage
 
 ```
