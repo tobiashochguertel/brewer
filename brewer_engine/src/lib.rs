@@ -36,6 +36,26 @@ impl Engine {
         }
     }
 
+    /// Get reference to the store
+    pub fn store(&self) -> &Store {
+        &self.store
+    }
+
+    /// Get mutable reference to the store
+    pub fn store_mut(&mut self) -> &mut Store {
+        &mut self.store
+    }
+
+    /// Get reference to the brew instance
+    pub fn brew(&self) -> &Brew {
+        &self.brew
+    }
+
+    /// Get the cache duration setting
+    pub fn cache_duration(&self) -> Option<Duration> {
+        self.cache_duration
+    }
+
     /// Get cache TTL from environment or default (24 hours)
     fn get_cache_ttl() -> Option<Duration> {
         // Check if cache should never expire

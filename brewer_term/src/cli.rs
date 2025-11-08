@@ -56,6 +56,9 @@ pub enum Commands {
     /// Uninstall the given formula or cask.
     #[clap(aliases = & ["r", "remove"])]
     Uninstall(uninstall::Uninstall),
+
+    /// Manage cache (status, update, clear)
+    Cache(cache::Cache),
 }
 
 pub mod which {
@@ -721,6 +724,8 @@ pub mod search {
         }
     }
 }
+
+pub mod cache;
 
 pub mod paths {
     use clap::{Parser, Subcommand};

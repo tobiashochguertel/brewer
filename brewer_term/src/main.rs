@@ -97,6 +97,15 @@ fn run() -> anyhow::Result<bool> {
 
             Ok(true)
         }
+        Commands::Cache(cmd) => {
+            let settings = settings::Settings::new()?;
+
+            let engine = get_engine(settings)?;
+
+            cmd.run(engine)?;
+
+            Ok(true)
+        }
     }
 }
 
