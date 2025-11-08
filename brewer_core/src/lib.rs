@@ -14,6 +14,10 @@ use crate::models::*;
 
 pub mod models;
 
+#[cfg(test)]
+#[path = "lib_tests.rs"]
+mod lib_tests;
+
 const DEFAULT_BREW_PATH: &str = "brew";
 
 const BREW_PREFIX_ENV_KEY: &str = "HOMEBREW_PREFIX";

@@ -12,6 +12,10 @@ pub struct Store {
 
 pub type State = models::State<models::formula::Store, models::cask::Store>;
 
+#[cfg(test)]
+#[path = "store_tests.rs"]
+mod store_tests;
+
 impl Store {
     const UPDATE_BUCKET: &'static str = "update";
     const STATE_BUCKET: &'static str = "state";

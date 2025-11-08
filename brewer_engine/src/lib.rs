@@ -10,6 +10,10 @@ use crate::store::Store;
 
 pub mod store;
 
+#[cfg(test)]
+#[path = "lib_tests.rs"]
+mod lib_tests;
+
 pub type State = models::State<models::formula::State, models::cask::State>;
 
 #[derive(Builder)]
