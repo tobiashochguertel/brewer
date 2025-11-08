@@ -1,2 +1,2 @@
 install:
-    cargo install --path brewer_term
+    cargo install --path brewer_term --force
