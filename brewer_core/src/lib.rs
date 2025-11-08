@@ -324,7 +324,9 @@ impl Brew {
         Ok(installed)
     }
 
-    fn eval_installed_formulae_receipts(&self) -> anyhow::Result<formula::receipt::Store> {
+    /// Internal method exposed for testing. Do not use directly in production code.
+    #[doc(hidden)]
+    pub fn eval_installed_formulae_receipts(&self) -> anyhow::Result<formula::receipt::Store> {
         let opt = self.prefix.join("opt").read_dir()?;
 
         let mut store = formula::receipt::Store::new();
@@ -345,12 +347,35 @@ impl Brew {
 
             let receipt_path = path.canonicalize()?.join("INSTALL_RECEIPT.json");
 
-            let mut file = File::open(receipt_path)?;
+            // Skip if receipt file doesn't exist
+            if !receipt_path.exists() {
+                continue;
+            }
+
+            let mut file = match File::open(&receipt_path) {
+                Ok(f) => f,
+                Err(_) => continue, // Skip if can't open file
+            };
+            
             let mut data = Vec::new();
 
-            file.read_to_end(&mut data)?;
+            if let Err(_) = file.read_to_end(&mut data) {
+                continue; // Skip if can't read file
+            }
 
-            let receipt: formula::receipt::Receipt = serde_json::from_slice(data.as_slice())?;
+            // Skip if file is empty
+            if data.is_empty() {
+                continue;
+            }
+
+            // Try to parse receipt, skip if parsing fails
+            let receipt: formula::receipt::Receipt = match serde_json::from_slice(data.as_slice()) {
+                Ok(r) => r,
+                Err(e) => {
+                    log::warn!("Failed to parse INSTALL_RECEIPT.json for {}: {}", name, e);
+                    continue;
+                }
+            };
 
             store.insert(name.clone(), receipt);
         }

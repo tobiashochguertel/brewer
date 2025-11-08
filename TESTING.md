@@ -25,9 +25,13 @@ This project uses a modern, maintainable testing approach with comprehensive tes
   - Tests for formula/cask model operations
   - Tests for `split_kegs` utility function
 
-- **Integration tests**: `tests/integration_tests.rs`
-  - Tests for complete workflow scenarios
-  - Tests for model creation and manipulation
+- **Integration tests**: 
+  - `tests/integration_tests.rs` - Complete workflow scenarios and model creation
+  - `tests/receipt_parsing_tests.rs` - INSTALL_RECEIPT.json parsing robustness
+    - Tests handling of empty receipt files
+    - Tests handling of corrupted JSON
+    - Tests handling of missing receipt files
+    - Tests mixed scenarios with valid and invalid receipts
 
 ### brewer_engine
 - **Unit tests**: 
@@ -113,6 +117,7 @@ cargo test -- --test-threads=1 --nocapture
   - Core data structures: 100%
   - Utility functions: 100%
   - Brew operations: Focus on testable logic
+  - Error handling: Comprehensive coverage for file parsing failures
 
 - **brewer_engine**: >80% coverage
   - Store operations: 100%
