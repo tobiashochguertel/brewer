@@ -49,19 +49,33 @@ impl Engine {
     }
 
     pub fn cache_or_latest(&mut self) -> anyhow::Result<State> {
-        let cache = self.cache()?;
-
-        if self.cache_expired()? || cache.is_none() {
-            info!("updating the cache, this will take some time");
-
-            let latest = self.fetch_latest()?;
-
-            self.update_cache(&latest)?;
-
-            Ok(latest)
+        // Try to use cached brew JSON first
+        if let Ok(Some(cached_json)) = self.store.get_cached_brew_json() {
+            if !self.cache_expired()? {
+                info!("using cached brew data");
+                match self.brew.state_from_cache(&cached_json) {
+                    Ok(state) => return Ok(state),
+                    Err(e) => {
+                        log::warn!("failed to use cached data: {}, fetching fresh", e);
+                    }
+                }
+            } else {
+                info!("cache expired, fetching fresh data");
+            }
         } else {
-            Ok(cache.unwrap())
+            info!("no cache available, fetching fresh data (this will take 2-3 minutes)");
         }
+
+        // Fetch fresh data and cache the raw JSON
+        let (state, json_data) = self.brew.fetch_and_get_json()?;
+        
+        // Cache the raw JSON for fast future loads
+        self.store.cache_brew_json(&json_data)?;
+        
+        // Also update the traditional state cache
+        self.update_cache(&state)?;
+
+        Ok(state)
     }
 
     pub fn cache(&self) -> anyhow::Result<Option<State>> {

@@ -177,6 +177,11 @@ impl Brew {
         Ok(store)
     }
 
+    /// Get state from cached JSON if available, otherwise fetch fresh
+    pub fn state_from_cache(&self, cached_json: &[u8]) -> anyhow::Result<State<formula::State, cask::State>> {
+        self.state_from_json(cached_json)
+    }
+
     pub fn state(&self) -> anyhow::Result<State<formula::State, cask::State>> {
         let executables = self.executables()?;
         let analytics = self.analytics()?;
@@ -387,16 +392,71 @@ impl Brew {
         name.starts_with('.')
     }
 
-    fn eval_all(&self) -> anyhow::Result<State<formula::base::Store, cask::base::Store>> {
-        let mut command = self.brew();
+    /// Parse state from JSON bytes (used for both fresh and cached data)
+    fn state_from_json(&self, json_data: &[u8]) -> anyhow::Result<State<formula::State, cask::State>> {
+        let all = self.parse_brew_json(json_data)?;
+        
+        let executables = self.executables()?;
+        let analytics = self.analytics()?;
 
+        let all: State<formula::Store, cask::Store> = State {
+            formulae: all
+                .formulae
+                .into_iter()
+                .map(|(name, base)| {
+                    let exec = executables.get(&name).cloned().unwrap_or_default();
+                    let analytics_data = analytics
+                        .get(&name)
+                        .or_else(|| analytics.get(&format!("{}/{}", base.tap, base.name)))
+                        .cloned();
+
+                    (
+                        name,
+                        formula::Formula {
+                            base,
+                            executables: exec,
+                            analytics: analytics_data,
+                        },
+                    )
+                })
+                .collect(),
+            casks: all
+                .casks
+                .into_iter()
+                .map(|(name, base)| (name, cask::Cask { base }))
+                .collect(),
+        };
+
+        let installed = self.installed(&all)?;
+
+        Ok(State {
+            formulae: formula::State {
+                all: all.formulae,
+                installed: installed.formulae,
+            },
+            casks: cask::State {
+                all: all.casks,
+                installed: installed.casks,
+            },
+        })
+    }
+
+    /// Fetch fresh brew data and return both state and raw JSON
+    pub fn fetch_and_get_json(&self) -> anyhow::Result<(State<formula::State, cask::State>, Vec<u8>)> {
+        let json_data = self.fetch_brew_json()?;
+        let state = self.state_from_json(&json_data)?;
+        Ok((state, json_data))
+    }
+
+    /// Fetch raw JSON from brew (without parsing)
+    fn fetch_brew_json(&self) -> anyhow::Result<Vec<u8>> {
+        let mut command = self.brew();
         let command = command.arg("info").arg("--eval-all").arg(Self::JSON_FLAG);
 
         info!("running {:?}", command);
 
         let output = command.output()?;
 
-        // Check if stdout is empty
         if output.stdout.is_empty() {
             log::error!("brew info --eval-all returned empty output");
             log::error!("stderr: {}", String::from_utf8_lossy(&output.stderr));
@@ -406,18 +466,22 @@ impl Brew {
             ));
         }
 
+        Ok(output.stdout)
+    }
+
+    fn parse_brew_json(&self, json_data: &[u8]) -> anyhow::Result<State<formula::base::Store, cask::base::Store>> {
         #[derive(Deserialize)]
         struct Result {
             formulae: Vec<formula::base::Formula>,
             casks: Vec<cask::base::Cask>,
         }
 
-        let result: Result = match serde_json::from_slice(output.stdout.as_slice()) {
+        let result: Result = match serde_json::from_slice(json_data) {
             Ok(r) => r,
             Err(e) => {
                 log::error!("Failed to parse JSON from brew info --eval-all: {}", e);
                 log::error!("Output (first 500 chars): {}", 
-                    String::from_utf8_lossy(&output.stdout[..std::cmp::min(500, output.stdout.len())]));
+                    String::from_utf8_lossy(&json_data[..std::cmp::min(500, json_data.len())]));
                 return Err(anyhow!(
                     "Failed to parse JSON from brew. Error: {}. \
                      This may be caused by broken tap formulas. \
@@ -439,6 +503,11 @@ impl Brew {
             .collect();
 
         Ok(State { formulae, casks })
+    }
+
+    fn eval_all(&self) -> anyhow::Result<State<formula::base::Store, cask::base::Store>> {
+        let json_data = self.fetch_brew_json()?;
+        self.parse_brew_json(&json_data)
     }
 }
 

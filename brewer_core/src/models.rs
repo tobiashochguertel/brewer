@@ -63,17 +63,26 @@ pub mod formula {
         pub struct Formula {
             pub name: String,
             pub tap: String,
+            #[serde(default)]
             pub desc: Option<String>,
+            #[serde(default)]
             pub homepage: Option<String>,
+            #[serde(default)]
             pub caveats: Option<String>,
 
+            #[serde(default)]
             pub build_dependencies: Vec<String>,
+            #[serde(default)]
             pub dependencies: Vec<String>,
 
+            #[serde(default)]
             pub deprecated: bool,
+            #[serde(default)]
             pub deprecation_reason: Option<String>,
 
+            #[serde(default)]
             pub disabled: bool,
+            #[serde(default)]
             pub disable_reason: Option<String>,
 
             #[serde(default)]
@@ -84,7 +93,9 @@ pub mod formula {
 
         #[derive(Serialize, Deserialize, Clone)]
         pub struct Versions {
-            pub stable: String,
+            #[serde(default)]
+            pub stable: Option<String>,
+            #[serde(default)]
             pub head: Option<String>,
         }
     }

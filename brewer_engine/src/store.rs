@@ -19,8 +19,10 @@ mod store_tests;
 impl Store {
     const UPDATE_BUCKET: &'static str = "update";
     const STATE_BUCKET: &'static str = "state";
+    const BREW_CACHE_BUCKET: &'static str = "brew_cache";
 
     const STATE_KEY: &'static str = "state";
+    const BREW_JSON_KEY: &'static str = "brew_json_v1";
 
     pub fn open(path: &Path) -> anyhow::Result<Store> {
         Ok(Store {
@@ -89,6 +91,55 @@ impl Store {
 
         Self::commit_update(tx)?;
 
+        Ok(())
+    }
+
+    /// Cache raw brew JSON output for faster subsequent loads
+    pub fn cache_brew_json(&mut self, json_data: &[u8]) -> anyhow::Result<()> {
+        let tx = self.db.tx(true)?;
+        let bucket = tx.get_or_create_bucket(Self::BREW_CACHE_BUCKET)?;
+        
+        bucket.put(Self::BREW_JSON_KEY, json_data)?;
+        
+        Self::commit_update(tx)?;
+        Ok(())
+    }
+
+    /// Get cached brew JSON output
+    pub fn get_cached_brew_json(&self) -> anyhow::Result<Option<Vec<u8>>> {
+        let tx = self.db.tx(false)?;
+
+        match tx.get_bucket(Self::BREW_CACHE_BUCKET) {
+            Ok(bucket) => {
+                let Some(data) = bucket.get(Self::BREW_JSON_KEY) else {
+                    return Ok(None);
+                };
+
+                Ok(Some(data.kv().value().to_vec()))
+            }
+            Err(jammdb::Error::BucketMissing) => Ok(None),
+            Err(e) => Err(anyhow::anyhow!(e))
+        }
+    }
+
+    /// Get size of cached data in bytes
+    pub fn cache_size(&self) -> anyhow::Result<usize> {
+        match self.get_cached_brew_json()? {
+            Some(data) => Ok(data.len()),
+            None => Ok(0),
+        }
+    }
+
+    /// Clear the brew JSON cache
+    pub fn clear_brew_cache(&mut self) -> anyhow::Result<()> {
+        let tx = self.db.tx(true)?;
+        
+        // Delete and recreate the bucket to clear it
+        if tx.get_bucket(Self::BREW_CACHE_BUCKET).is_ok() {
+            tx.delete_bucket(Self::BREW_CACHE_BUCKET)?;
+        }
+        
+        tx.commit()?;
         Ok(())
     }
 }

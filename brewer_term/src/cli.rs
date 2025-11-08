@@ -451,7 +451,7 @@ fn info_formula(
         header::primary!(
             "{} {} (Cask)",
             &formula.base.name,
-            formula.base.versions.stable
+            formula.base.versions.stable.as_deref().unwrap_or("unknown")
         )
     )?;
     writeln!(buf, "From {}", formula.base.tap.yellow())?;
@@ -940,7 +940,7 @@ pub mod install {
                     w,
                     "{} {} (Formula)",
                     f.base.name.cyan(),
-                    f.base.versions.stable
+                    f.base.versions.stable.as_deref().unwrap_or("unknown")
                 )?,
                 models::Keg::Cask(c) => {
                     writeln!(w, "{} {} (Cask)", c.base.token.cyan(), c.base.version)?
@@ -1248,7 +1248,7 @@ pub mod uninstall {
                     w,
                     "{} {} (Formula)",
                     f.base.name.cyan(),
-                    f.base.versions.stable
+                    f.base.versions.stable.as_deref().unwrap_or("unknown")
                 )?,
                 models::Keg::Cask(c) => {
                     writeln!(w, "{} {} (Cask)", c.base.token.cyan(), c.base.version)?
