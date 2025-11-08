@@ -194,7 +194,7 @@ pub mod which {
     }
 
     impl SkimItem for Executable {
-        fn text(&self) -> Cow<str> {
+        fn text(&self) -> Cow<'_, str> {
             Cow::Borrowed(&self.name)
         }
 
@@ -697,7 +697,7 @@ pub mod search {
     }
 
     impl SkimItem for Keg {
-        fn text(&self) -> Cow<str> {
+        fn text(&self) -> Cow<'_, str> {
             match self {
                 Keg::Formula(formula, _) => Cow::Borrowed(&formula.base.name),
                 Keg::Cask(cask, _) => Cow::Borrowed(&cask.base.token),
@@ -1007,7 +1007,7 @@ pub mod install {
     }
 
     impl SkimItem for Keg {
-        fn text(&self) -> Cow<str> {
+        fn text(&self) -> Cow<'_, str> {
             match &self.0 {
                 models::Keg::Formula(formula) => Cow::Borrowed(&formula.base.name),
                 models::Keg::Cask(cask) => Cow::Borrowed(&cask.base.token),
@@ -1241,7 +1241,7 @@ pub mod uninstall {
     }
 
     impl SkimItem for Keg {
-        fn text(&self) -> Cow<str> {
+        fn text(&self) -> Cow<'_, str> {
             match &self {
                 Keg::Formula(formula) => Cow::Borrowed(&formula.upstream.base.name),
                 Keg::Cask(cask) => Cow::Borrowed(&cask.upstream.base.token),
@@ -1305,4 +1305,5 @@ where
     }
 }
 
+#[allow(dead_code)]
 fn kegs_list() {}
