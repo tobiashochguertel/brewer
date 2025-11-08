@@ -1033,6 +1033,7 @@ pub mod uninstall {
     use std::borrow::Cow;
     use std::io::{BufWriter, Write};
 
+    use anyhow;
     use clap::Args;
     use colored::Colorize;
     use inquire::{Confirm, InquireError};
@@ -1061,6 +1062,11 @@ pub mod uninstall {
 
     impl Uninstall {
         pub fn run(&self, mut engine: Engine) -> anyhow::Result<()> {
+            // Pre-check: If specific packages are provided, validate them quickly before loading full state
+            if !self.names.is_empty() {
+                self.quick_validate_packages()?;
+            }
+
             let state = engine.cache_or_latest()?;
 
             let kegs = self.get_kegs(state)?;
@@ -1137,6 +1143,69 @@ pub mod uninstall {
             }
 
             Ok(kegs)
+        }
+
+        /// Quick validation of packages by checking filesystem directly
+        /// This avoids loading the full state and provides faster feedback
+        fn quick_validate_packages(&self) -> anyhow::Result<()> {
+            use colored::Colorize;
+
+            let brew = brewer_core::Brew::default();
+            let opt_dir = brew.prefix.join("opt");
+            let caskroom_dir = brew.prefix.join("Caskroom");
+
+            let mut not_installed: Vec<String> = Vec::new();
+            let mut installed_count = 0;
+
+            for name in &self.names {
+                let formula_exists = opt_dir.join(name).exists();
+                let cask_exists = caskroom_dir.join(name).exists();
+
+                if self.formula {
+                    if !formula_exists {
+                        not_installed.push(format!("{} (formula)", name));
+                    } else {
+                        installed_count += 1;
+                    }
+                } else if self.cask {
+                    if !cask_exists {
+                        not_installed.push(format!("{} (cask)", name));
+                    } else {
+                        installed_count += 1;
+                    }
+                } else {
+                    // Auto-detect type
+                    if !formula_exists && !cask_exists {
+                        not_installed.push(name.clone());
+                    } else {
+                        installed_count += 1;
+                    }
+                }
+            }
+
+            if !not_installed.is_empty() {
+                println!("{}", header::warning!(
+                    "⚠️  {} package(s) not installed, will be skipped:",
+                    not_installed.len()
+                ));
+                for pkg in &not_installed {
+                    println!("   {} {}", "×".red(), pkg.dimmed());
+                }
+                println!();
+            }
+
+            if installed_count > 0 {
+                println!("{}", header::primary!(
+                    "✓ Found {} package(s) to uninstall",
+                    installed_count
+                ));
+                println!();
+            } else if not_installed.len() == self.names.len() {
+                println!("{}", header::error!("❌ No installed packages found"));
+                return Err(anyhow::anyhow!("All specified packages are not installed"));
+            }
+
+            Ok(())
         }
 
         fn get_kegs_from_skim(&self, state: State) -> anyhow::Result<Vec<Keg>> {
