@@ -12,35 +12,26 @@ pub enum CacheCommands {
     /// Show cache status and information
     Status,
     /// Update cache manually
-    Update(Update),
+    Update,
     /// Clear the cache
     Clear,
-}
-
-#[derive(Args)]
-pub struct Update {
-    /// Update cache quietly without progress output
-    #[clap(short, long)]
-    pub quiet: bool,
 }
 
 impl Cache {
     pub fn run(&self, mut engine: Engine) -> anyhow::Result<()> {
         match &self.command {
             CacheCommands::Status => status(&engine),
-            CacheCommands::Update(update) => self.update(&mut engine, update),
+            CacheCommands::Update => self.update(&mut engine),
             CacheCommands::Clear => clear(&mut engine),
         }
     }
 
-    fn update(&self, engine: &mut Engine, opts: &Update) -> anyhow::Result<()> {
+    fn update(&self, engine: &mut Engine) -> anyhow::Result<()> {
         use colored::Colorize;
 
-        if !opts.quiet {
-            println!("{}", "📦 Updating cache...".cyan());
-            println!("This may take 2-3 minutes depending on the number of taps.");
-            println!();
-        }
+        println!("{}", "📦 Updating cache...".cyan());
+        println!("This may take 2-3 minutes depending on the number of taps.");
+        println!();
 
         // Force cache update by fetching fresh data
         let start = std::time::Instant::now();
@@ -50,14 +41,12 @@ impl Cache {
         
         let elapsed = start.elapsed();
 
-        if !opts.quiet {
-            println!("{}", "✅ Cache updated successfully!".green());
-            println!("   Time taken: {:.1}s", elapsed.as_secs_f64());
-            println!("   Formulae: {}", state.formulae.all.len());
-            println!("   Casks: {}", state.casks.all.len());
-            println!("   Cache size: {:.1} MB", 
-                engine.store().cache_size()? as f64 / 1_000_000.0);
-        }
+        println!("{}", "✅ Cache updated successfully!".green());
+        println!("   Time taken: {:.1}s", elapsed.as_secs_f64());
+        println!("   Formulae: {}", state.formulae.all.len());
+        println!("   Casks: {}", state.casks.all.len());
+        println!("   Cache size: {:.1} MB", 
+            engine.store().cache_size()? as f64 / 1_000_000.0);
 
         Ok(())
     }
