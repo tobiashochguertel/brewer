@@ -32,7 +32,7 @@ const DEFAULT_BREW_PREFIX: &str = "/usr/local";
 const DEFAULT_BREW_PREFIX: &str = "/home/linuxbrew/.linuxbrew";
 
 const BREW_BIN_REGISTRY_URL: &str =
-    "https://raw.githubusercontent.com/Homebrew/homebrew-command-not-found/master/executables.txt";
+    "https://formulae.brew.sh/api/internal/executables.txt";
 
 const BREW_ANALYTICS_URL: &str = "https://formulae.brew.sh/api/analytics/install/30d.json";
 
