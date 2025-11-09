@@ -69,7 +69,21 @@ fn status(engine: &Engine) -> anyhow::Result<()> {
 
             // Last update time
             if let Some(last_update) = engine.store().last_update()? {
-                println!("  {} {}", "Last updated:".bold(), last_update.format("%Y-%m-%d %H:%M:%S"));
+                // Use system time to calculate age
+                let now = std::time::SystemTime::now();
+                let last_update_sys = std::time::UNIX_EPOCH + std::time::Duration::from_secs(
+                    last_update.and_utc().timestamp() as u64
+                );
+                
+                if let Ok(duration) = now.duration_since(last_update_sys) {
+                    let age_str = format_duration(duration.as_secs() as i64);
+                    println!("  {} {} ({} ago)", 
+                        "Last updated:".bold(), 
+                        last_update.format("%Y-%m-%d %H:%M:%S"),
+                        age_str.dimmed());
+                } else {
+                    println!("  {} {}", "Last updated:".bold(), last_update.format("%Y-%m-%d %H:%M:%S"));
+                }
 
                 // Check if expired
                 if engine.cache_expired()? {
