@@ -7,6 +7,7 @@ use std::process::Command;
 
 use anyhow::anyhow;
 use derive_builder::Builder;
+use indicatif::{ProgressBar, ProgressStyle};
 use log::info;
 use serde::Deserialize;
 
@@ -186,12 +187,19 @@ impl Brew {
         let url = std::env::var(BREW_EXECUTABLES_URL_ENV_KEY)
             .unwrap_or_else(|_| BREW_BIN_REGISTRY_URL.to_string());
         
+        let pb = Self::create_progress_spinner();
+        pb.set_message("Fetching executables database...");
+        
         info!("Fetching executables from {}", url);
         
-        reqwest::blocking::get(&url)
+        let result = reqwest::blocking::get(&url)
             .map_err(|e| anyhow!("Failed to fetch executables data from {}: {}", url, e))?
             .text()
-            .map_err(|e| anyhow!("Failed to read executables data: {}", e))
+            .map_err(|e| anyhow!("Failed to read executables data: {}", e));
+        
+        pb.finish_and_clear();
+        
+        result
     }
 
     fn parse_executables(&self, body: &str) -> anyhow::Result<formula::Executables> {
@@ -524,9 +532,29 @@ impl Brew {
 
     /// Fetch fresh brew data and return both state and raw JSON
     pub fn fetch_and_get_json(&self) -> anyhow::Result<(State<formula::State, cask::State>, Vec<u8>)> {
+        let pb = Self::create_progress_spinner();
+        
+        pb.set_message("Fetching brew data (this may take 2-3 minutes)...");
         let json_data = self.fetch_brew_json()?;
+        
+        pb.set_message("Processing formulae and casks...");
         let state = self.state_from_json(&json_data)?;
+        
+        pb.finish_with_message("✓ Cache built successfully");
+        
         Ok((state, json_data))
+    }
+
+    /// Create a progress spinner for long operations
+    fn create_progress_spinner() -> ProgressBar {
+        let pb = ProgressBar::new_spinner();
+        pb.set_style(
+            ProgressStyle::default_spinner()
+                .template("{spinner:.green} {msg}")
+                .unwrap()
+        );
+        pb.enable_steady_tick(std::time::Duration::from_millis(100));
+        pb
     }
 
     /// Fetch raw JSON from brew (without parsing)
