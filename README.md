@@ -68,6 +68,9 @@ export BREWER_CACHE_NEVER_EXPIRE=1
 
 # Force cache refresh
 export BREWER_CACHE_TTL=0
+
+# Custom executables data source (default: Homebrew official)
+export BREWER_EXECUTABLES_URL="https://formulae.brew.sh/api/internal/executables.txt"
 ```
 
 **Examples:**
@@ -95,15 +98,17 @@ $ brewer which fd
 ### Cache Management
 
 ```bash
-# Check cache status (coming in Phase 2)
+# Check cache status
 brewer cache status
 
-# Manually update cache (coming in Phase 2)
+# Manually update cache
 brewer cache update
 
-# Clear cache (coming in Phase 2)
+# Clear cache
 brewer cache clear
 ```
+
+**Note**: Executables data (used by `which` command) is cached alongside brew data and follows the same TTL configuration.
 
 ## Troubleshooting
 
