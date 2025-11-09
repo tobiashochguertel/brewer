@@ -100,7 +100,11 @@ impl Engine {
         if let Ok(Some(cached_json)) = self.store.get_cached_brew_json() {
             if !self.cache_expired()? {
                 info!("using cached brew data");
-                match self.brew.state_from_cache(&cached_json) {
+                
+                // Try to use cached executables too
+                let cached_executables = self.store.get_cached_executables().ok().flatten();
+                
+                match self.brew.state_from_cache_with_executables(&cached_json, cached_executables.as_deref()) {
                     Ok(state) => return Ok(state),
                     Err(e) => {
                         log::warn!("failed to use cached data: {}, fetching fresh", e);
@@ -113,11 +117,23 @@ impl Engine {
             info!("no cache available, fetching fresh data (this will take 2-3 minutes)");
         }
 
-        // Fetch fresh data and cache the raw JSON
+        // Fetch fresh data and cache everything
         let (state, json_data) = self.brew.fetch_and_get_json()?;
         
         // Cache the raw JSON for fast future loads
         self.store.cache_brew_json(&json_data)?;
+        
+        // Fetch and cache executables data
+        match self.brew.fetch_executables_text() {
+            Ok(executables_text) => {
+                if let Err(e) = self.store.cache_executables(&executables_text) {
+                    log::warn!("Failed to cache executables: {}", e);
+                }
+            }
+            Err(e) => {
+                log::warn!("Failed to fetch executables (which command may not work): {}", e);
+            }
+        }
         
         // Also update the traditional state cache
         self.update_cache(&state)?;

@@ -34,6 +34,8 @@ const DEFAULT_BREW_PREFIX: &str = "/home/linuxbrew/.linuxbrew";
 const BREW_BIN_REGISTRY_URL: &str =
     "https://formulae.brew.sh/api/internal/executables.txt";
 
+const BREW_EXECUTABLES_URL_ENV_KEY: &str = "BREWER_EXECUTABLES_URL";
+
 const BREW_ANALYTICS_URL: &str = "https://formulae.brew.sh/api/analytics/install/30d.json";
 
 #[derive(Builder, Clone)]
@@ -155,15 +157,57 @@ impl Brew {
     }
 
     pub fn executables(&self) -> anyhow::Result<formula::Executables> {
-        let body = reqwest::blocking::get(BREW_BIN_REGISTRY_URL)?.text()?;
-        let mut store = formula::Executables::new();
+        self.fetch_executables()
+    }
 
-        for line in body.lines().filter(|l| !l.is_empty()) {
+    /// Fetch executables data from remote URL
+    fn fetch_executables(&self) -> anyhow::Result<formula::Executables> {
+        let url = std::env::var(BREW_EXECUTABLES_URL_ENV_KEY)
+            .unwrap_or_else(|_| BREW_BIN_REGISTRY_URL.to_string());
+        
+        info!("Fetching executables from {}", url);
+        
+        let body = reqwest::blocking::get(&url)
+            .map_err(|e| anyhow!("Failed to fetch executables data from {}: {}", url, e))?
+            .text()
+            .map_err(|e| anyhow!("Failed to read executables data: {}", e))?;
+        
+        self.parse_executables(&body)
+    }
+
+    /// Parse executables from cached data
+    pub fn executables_from_cache(&self, cached_data: &str) -> anyhow::Result<formula::Executables> {
+        info!("Using cached executables data");
+        self.parse_executables(cached_data)
+    }
+
+    /// Fetch executables text data (for caching)
+    pub fn fetch_executables_text(&self) -> anyhow::Result<String> {
+        let url = std::env::var(BREW_EXECUTABLES_URL_ENV_KEY)
+            .unwrap_or_else(|_| BREW_BIN_REGISTRY_URL.to_string());
+        
+        info!("Fetching executables from {}", url);
+        
+        reqwest::blocking::get(&url)
+            .map_err(|e| anyhow!("Failed to fetch executables data from {}: {}", url, e))?
+            .text()
+            .map_err(|e| anyhow!("Failed to read executables data: {}", e))
+    }
+
+    fn parse_executables(&self, body: &str) -> anyhow::Result<formula::Executables> {
+        let mut store = formula::Executables::new();
+        let mut parse_errors = 0;
+
+        for (line_num, line) in body.lines().enumerate().filter(|(_, l)| !l.is_empty()) {
             let Some((lhs, rhs)) = line.split_once(':') else {
+                parse_errors += 1;
+                log::debug!("Line {} has no colon separator: {}", line_num + 1, line);
                 continue;
             };
 
             let Some(index) = lhs.find('(') else {
+                parse_errors += 1;
+                log::debug!("Line {} has no version parenthesis: {}", line_num + 1, line);
                 continue;
             };
 
@@ -171,8 +215,18 @@ impl Brew {
             let executables: HashSet<String> =
                 rhs.split_whitespace().map(|s| s.to_string()).collect();
 
+            if executables.is_empty() {
+                log::debug!("Formula {} has no executables listed", name);
+            }
+
             store.insert(name.to_string(), executables);
         }
+
+        if parse_errors > 0 {
+            log::warn!("Encountered {} parse errors in executables data", parse_errors);
+        }
+
+        info!("Loaded {} formulae with executables", store.len());
 
         Ok(store)
     }
@@ -180,6 +234,15 @@ impl Brew {
     /// Get state from cached JSON if available, otherwise fetch fresh
     pub fn state_from_cache(&self, cached_json: &[u8]) -> anyhow::Result<State<formula::State, cask::State>> {
         self.state_from_json(cached_json)
+    }
+
+    /// Get state from cached JSON with optional cached executables
+    pub fn state_from_cache_with_executables(
+        &self, 
+        cached_json: &[u8],
+        cached_executables: Option<&str>
+    ) -> anyhow::Result<State<formula::State, cask::State>> {
+        self.state_from_json_with_executables(cached_json, cached_executables)
     }
 
     pub fn state(&self) -> anyhow::Result<State<formula::State, cask::State>> {
@@ -394,9 +457,27 @@ impl Brew {
 
     /// Parse state from JSON bytes (used for both fresh and cached data)
     fn state_from_json(&self, json_data: &[u8]) -> anyhow::Result<State<formula::State, cask::State>> {
+        self.state_from_json_with_executables(json_data, None)
+    }
+
+    fn state_from_json_with_executables(
+        &self, 
+        json_data: &[u8], 
+        cached_executables: Option<&str>
+    ) -> anyhow::Result<State<formula::State, cask::State>> {
         let all = self.parse_brew_json(json_data)?;
         
-        let executables = self.executables()?;
+        let executables = match cached_executables {
+            Some(data) => {
+                info!("Using cached executables data");
+                self.executables_from_cache(data)?
+            }
+            None => {
+                info!("Fetching fresh executables data");
+                self.executables()?
+            }
+        };
+        
         let analytics = self.analytics()?;
 
         let all: State<formula::Store, cask::Store> = State {

@@ -23,6 +23,8 @@ impl Store {
 
     const STATE_KEY: &'static str = "state";
     const BREW_JSON_KEY: &'static str = "brew_json_v1";
+    const EXECUTABLES_KEY: &'static str = "executables_v1";
+    const EXECUTABLES_UPDATE_KEY: &'static str = "executables_update";
 
     pub fn open(path: &Path) -> anyhow::Result<Store> {
         Ok(Store {
@@ -137,6 +139,74 @@ impl Store {
         // Delete and recreate the bucket to clear it
         if tx.get_bucket(Self::BREW_CACHE_BUCKET).is_ok() {
             tx.delete_bucket(Self::BREW_CACHE_BUCKET)?;
+        }
+        
+        tx.commit()?;
+        Ok(())
+    }
+
+    /// Cache executables data
+    pub fn cache_executables(&mut self, data: &str) -> anyhow::Result<()> {
+        let tx = self.db.tx(true)?;
+        let bucket = tx.get_or_create_bucket(Self::BREW_CACHE_BUCKET)?;
+        
+        bucket.put(Self::EXECUTABLES_KEY, data.as_bytes())?;
+        
+        // Update executables timestamp
+        let now = Utc::now().naive_utc();
+        let now_bytes = rmp_serde::to_vec(&now)?;
+        bucket.put(Self::EXECUTABLES_UPDATE_KEY, now_bytes)?;
+        
+        tx.commit()?;
+        Ok(())
+    }
+
+    /// Get cached executables data
+    pub fn get_cached_executables(&self) -> anyhow::Result<Option<String>> {
+        let tx = self.db.tx(false)?;
+
+        match tx.get_bucket(Self::BREW_CACHE_BUCKET) {
+            Ok(bucket) => {
+                let Some(data) = bucket.get(Self::EXECUTABLES_KEY) else {
+                    return Ok(None);
+                };
+
+                let text = String::from_utf8(data.kv().value().to_vec())
+                    .map_err(|e| anyhow::anyhow!("Invalid UTF-8 in cached executables: {}", e))?;
+                
+                Ok(Some(text))
+            }
+            Err(jammdb::Error::BucketMissing) => Ok(None),
+            Err(e) => Err(anyhow::anyhow!(e))
+        }
+    }
+
+    /// Get last update time for executables
+    pub fn executables_last_update(&self) -> anyhow::Result<Option<NaiveDateTime>> {
+        let tx = self.db.tx(false)?;
+
+        match tx.get_bucket(Self::BREW_CACHE_BUCKET) {
+            Ok(bucket) => {
+                let Some(data) = bucket.get(Self::EXECUTABLES_UPDATE_KEY) else {
+                    return Ok(None);
+                };
+
+                let datetime: NaiveDateTime = rmp_serde::from_slice(data.kv().value())?;
+                Ok(Some(datetime))
+            }
+            Err(jammdb::Error::BucketMissing) => Ok(None),
+            Err(e) => Err(anyhow::anyhow!(e))
+        }
+    }
+
+    /// Clear executables cache
+    pub fn clear_executables_cache(&mut self) -> anyhow::Result<()> {
+        let tx = self.db.tx(true)?;
+        
+        if let Ok(bucket) = tx.get_bucket(Self::BREW_CACHE_BUCKET) {
+            // Remove executables keys
+            let _ = bucket.delete(Self::EXECUTABLES_KEY);
+            let _ = bucket.delete(Self::EXECUTABLES_UPDATE_KEY);
         }
         
         tx.commit()?;
