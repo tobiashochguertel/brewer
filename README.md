@@ -71,6 +71,9 @@ export BREWER_CACHE_TTL=0
 
 # Custom executables data source (default: Homebrew official)
 export BREWER_EXECUTABLES_URL="https://formulae.brew.sh/api/internal/executables.txt"
+
+# Custom cache directory (default: platform-specific cache dir)
+export BREWER_CACHE_DIR="$HOME/.brewer_cache"
 ```
 
 **Examples:**
@@ -83,6 +86,9 @@ BREWER_CACHE_NEVER_EXPIRE=1 brewer list
 
 # Force fresh data (bypass cache)
 BREWER_CACHE_TTL=0 brewer search python
+
+# Use custom cache directory (useful for testing or multiple configurations)
+BREWER_CACHE_DIR=/tmp/brewer_test brewer cache update
 ```
 
 ### First Run

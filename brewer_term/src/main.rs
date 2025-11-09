@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use std::process::exit;
 
 use clap::Parser;
@@ -15,6 +16,31 @@ mod settings;
 
 fn setup_logger(level: LevelFilter) {
     env_logger::builder().filter_level(level).init();
+}
+
+/// Get the cache directory from environment or default location
+fn get_cache_dir() -> PathBuf {
+    // Check for explicit BREWER_CACHE_DIR override (useful for testing)
+    if let Ok(dir) = std::env::var("BREWER_CACHE_DIR") {
+        log::debug!("Using BREWER_CACHE_DIR: {}", dir);
+        return PathBuf::from(dir);
+    }
+    
+    // Check for XDG_CACHE_HOME (Linux/Unix standard)
+    if let Ok(dir) = std::env::var("XDG_CACHE_HOME") {
+        log::debug!("Using XDG_CACHE_HOME/brewer: {}", dir);
+        return PathBuf::from(dir).join("brewer");
+    }
+    
+    // Use platform-specific cache directory
+    if let Some(dir) = dirs::cache_dir() {
+        log::debug!("Using platform cache dir: {}", dir.display());
+        dir.join("brewer")
+    } else {
+        // Fallback to current directory
+        log::warn!("Could not determine cache directory, using ./brewer_cache");
+        PathBuf::from("brewer_cache")
+    }
 }
 
 fn run() -> anyhow::Result<bool> {
@@ -121,11 +147,7 @@ fn get_brew(settings: settings::Homebrew) -> anyhow::Result<Brew> {
 }
 
 fn get_engine(settings: settings::Settings) -> anyhow::Result<Engine> {
-    let db_path = if let Some(dir) = dirs::cache_dir() {
-        dir.join("brewer.db")
-    } else {
-        "brewer.db".into()
-    };
+    let db_path = get_cache_dir().join("brewer.db");
 
     let store = brewer_engine::store::Store::open(db_path.as_path())?;
 

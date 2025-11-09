@@ -29,7 +29,7 @@ fn cleanup_test_cache(dir: &PathBuf) {
 fn run_brewer(args: &[&str], cache_dir: &PathBuf) -> (String, String, i32) {
     let output = Command::new(brewer_bin())
         .args(args)
-        .env("HOME", cache_dir.to_str().unwrap())
+        .env("BREWER_CACHE_DIR", cache_dir.to_str().unwrap())
         .output()
         .expect("Failed to execute brewer");
 
